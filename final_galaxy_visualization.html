@@ -1,0 +1,166 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Galaxy Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+<script>
+  
+let stars = [];
+let numStars;
+let pg;
+let centralSunSize = 20;
+let galaxySize = 1.0;
+let speedMultiplier = 1.0;
+let tableBase, tableEth;
+let selectedStar = null;
+let viewMode = 'BOTH';
+let isStarHovered = false; // Variable to track if a star is being hovered over
+
+function preload() {
+  tableBase = loadTable('https://dl.dropboxusercontent.com/scl/fi/x8ag8wpu0cht0bdyr7uux/Base_Combined.csv?dl=0&rlkey=ymzpyekd73ulpji69blf4ey3c', 'csv', 'header');
+  tableEth = loadTable('https://dl.dropboxusercontent.com/scl/fi/r0b5ycfldh0gmb560glfu/Eth_combined.csv?rlkey=m4clincbjnsiyrgyq5g5xxy7o&dl=0', 'csv', 'header');
+}
+
+function setup() {
+  createCanvas(windowWidth, windowHeight);
+  pg = createGraphics(windowWidth, windowHeight);
+  pg.background(0, 0, 0, 30);
+  loadStars(tableBase);
+  loadStars(tableEth);
+  setGalaxySize(1.0);
+  createButtons();
+}
+
+function loadStars(table) {
+  numStars = table.getRowCount();
+  for (let i = 0; i < numStars; i++) {
+    let occurrence = table.getNum(i, 'occurrences');
+    let metadataName = table.getString(i, 'metadata_name');
+    let contractAddress = table.getString(i, 'contract_address');
+    let metadataDescription = table.getString(i, 'metadata_description');
+    stars.push(new Star(occurrence, metadataName, contractAddress, metadataDescription, table === tableBase ? 'BASE' : 'ETH'));
+  }
+}
+
+function createButtons() {
+  let baseButton = createButton('BASE');
+  baseButton.position(width - 150, 10);
+  baseButton.mousePressed(() => viewMode = 'BASE');
+
+  let ethButton = createButton('ETH');
+  ethButton.position(width - 100, 10);
+  ethButton.mousePressed(() => viewMode = 'ETH');
+
+  let bothButton = createButton('BOTH');
+  bothButton.position(width - 50, 10);
+  bothButton.mousePressed(() => viewMode = 'BOTH');
+}
+
+function setGalaxySize(size) {
+  galaxySize = size;
+  for (let i = 0; i < numStars; i++) {
+    stars[i].setDistance(size);
+  }
+}
+
+function draw() {
+  background(0, 10);
+  image(pg, 0, 0);
+
+  translate(width / 2, height / 2);
+  fill(255);
+  noStroke();
+  ellipse(0, 0, centralSunSize);
+
+  blendMode(ADD);
+
+  isStarHovered = false; // Reset isStarHovered at the beginning of each draw call
+
+  for (let i = 0; i < stars.length; i++) {
+    stars[i].display();
+
+    if (stars[i].isHovered()) {
+      selectedStar = stars[i];
+      isStarHovered = true; // Set isStarHovered to true if a star is being hovered over
+    }
+  }
+
+  if (!isStarHovered) {
+    for (let i = 0; i < stars.length; i++) {
+      stars[i].update(); // Update the stars' positions only if no star is being hovered over
+    }
+  }
+
+  blendMode(BLEND);
+  translate(-width / 2, -height / 2);
+
+  if (selectedStar) {
+    fill(255);
+    textSize(8);
+    text('Contract Address: ' + selectedStar.contractAddress, 10, 20);
+    text('Occurrences: ' + selectedStar.occurrences, 10, 40);
+    text('Metadata Name: ' + selectedStar.metadataName, 10, 60);
+    text('Metadata Description: ' + selectedStar.metadataDescription, 10, 80);
+  }
+}
+
+class Star {
+  constructor(occurrence, metadataName, contractAddress, metadataDescription, source) {
+    this.angle = random(TWO_PI);
+    this.orbitSpeed = 0.001 + random(0.003);
+    this.starSize = map(occurrence, 0, max(tableBase.getColumn('occurrences')), 0.5, 5);
+    this.z = random(0.5, 2);
+    this.setDistance(galaxySize);
+    this.metadataName = metadataName;
+    this.occurrences = occurrence;
+    this.contractAddress = contractAddress;
+    this.metadataDescription = metadataDescription;
+    this.source = source;
+  }
+
+  setDistance(size) {
+    this.distance = random(centralSunSize, width / 2) * size;
+  }
+
+  update() {
+    this.angle += this.orbitSpeed * this.z * speedMultiplier;
+    this.x = this.distance * cos(this.angle);
+    this.y = this.distance * sin(this.angle) / 3.0;
+  }
+
+  isHovered() {
+    let adjustedMouseX = mouseX - width / 2;
+    let adjustedMouseY = mouseY - height / 2;
+    let detectionRadius = this.starSize * this.z * 2;
+    return dist(adjustedMouseX, adjustedMouseY, this.x, this.y) < detectionRadius;
+  }
+
+  display() {
+    if (viewMode === 'BOTH' || viewMode === this.source) {
+      let starBrightness = map(this.z, 0.5, 2, 50, 255);
+      fill(starBrightness, starBrightness, starBrightness, 150);
+      noStroke();
+      ellipse(this.x, this.y, this.starSize * this.z);
+
+      if (this.isHovered()) {
+        fill(255);
+        textSize(15);
+        text(this.metadataName, this.x + 10, this.y);
+      }
+    }
+  }
+}
+
+</script>
+</body>
+</html>
